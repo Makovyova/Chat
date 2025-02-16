@@ -3,7 +3,6 @@ import json
 
 DATABASE_NAME = 'english_bot.db'
 
-
 def init_db():
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
@@ -21,18 +20,8 @@ def init_db():
             task_id INTEGER PRIMARY KEY AUTOINCREMENT,
             type TEXT,
             question TEXT,
-            options TEXT,
+            options TEXT,  -- this will hold options as JSON string
             answer TEXT
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS user_progress (
-           progress_id INTEGER PRIMARY KEY AUTOINCREMENT,
-           user_id INTEGER,
-           task_id INTEGER,
-           correct INTEGER DEFAULT 0,
-           FOREIGN KEY (user_id) REFERENCES users(user_id),
-           FOREIGN KEY (task_id) REFERENCES tasks(task_id)
         )
     """)
 
@@ -54,29 +43,13 @@ def user_exists(user_id):
     conn.close()
     return bool(result)
 
-def get_user_data(user_id):
+def add_task(task_type, question, options, answer):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT user_name, level FROM users WHERE user_id = ?", (user_id,))
-    result = cursor.fetchone()
+    options_json = json.dumps(options)
+    cursor.execute("INSERT INTO tasks (type, question, options, answer) VALUES (?, ?, ?, ?)", (task_type, question, options_json, answer))
+    conn.commit()
     conn.close()
-    return result
-
-# Функция для сохранения прогресса
-def save_progress(user_id, task_id, correct):
-  conn = sqlite3.connect(DATABASE_NAME)
-  cursor = conn.cursor()
-  cursor.execute("INSERT INTO user_progress (user_id, task_id, correct) VALUES (?, ?, ?)", (user_id, task_id, correct))
-  conn.commit()
-  conn.close()
-
-def add_task(task_type, question, options, answer):
-  conn = sqlite3.connect(DATABASE_NAME)
-  cursor = conn.cursor()
-  options_json = json.dumps(options) # Преобразуем список в JSON строку
-  cursor.execute("INSERT INTO tasks (type, question, options, answer) VALUES (?, ?, ?, ?)", (task_type, question, options_json, answer))
-  conn.commit()
-  conn.close()
 
 def get_tasks(task_type):
     conn = sqlite3.connect(DATABASE_NAME)
@@ -86,13 +59,38 @@ def get_tasks(task_type):
     conn.close()
     return tasks
 
+def get_user_data(user_id):
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_name, level FROM users WHERE user_id = ?", (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result
+
+def save_progress(user_id, task_id, correct):
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    
+    # Проверяем, есть ли уже запись для данного пользователя и задания
+    cursor.execute("SELECT * FROM user_progress WHERE user_id = ? AND task_id = ?", (user_id, task_id))
+    existing_record = cursor.fetchone()
+    
+    if existing_record:
+        # Обновляем существующую запись
+        cursor.execute("UPDATE user_progress SET correct = ? WHERE user_id = ? AND task_id = ?", (correct, user_id, task_id))
+    else:
+        # Создаем новую запись
+        cursor.execute("INSERT INTO user_progress (user_id, task_id, correct) VALUES (?, ?, ?)", (user_id, task_id, correct))
+        
+    conn.commit()
+    conn.close()
+
 def update_user_level(user_id, new_level):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET level = ? WHERE user_id = ?", (new_level, user_id))
     conn.commit()
     conn.close()
-
 
 def get_user_progress(user_id):
     conn = sqlite3.connect(DATABASE_NAME)

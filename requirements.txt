@@ -1,0 +1,5 @@
+Django==5.1.3
+python-telegram-bot
+python-dotenv
+spacy==3.7.2
+nltk==3.8.1
